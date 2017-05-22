@@ -63,7 +63,7 @@ There also exists a special https://github.com/testcontainers/testcontainers-spo
 we'll use in this workshop.
 
 Since the most recent snapshot versions are available at https://jitpack.io/[jitpack.io], you can
-include the dependency in `build.gradle` file like this:
+include the dependency in your `build.gradle` file like this:
 
 [source, groovy]
 ----
@@ -73,13 +73,13 @@ repositories {
 }
 
 dependencies {
-    compile 'com.github.testcontainers:testcontainers-spock:87299c10e8'
+    testCompile 'com.github.testcontainers:testcontainers-spock:87299c10e8'
 }
 ----
 
 ==== @Testcontainers class-annotation
 Specifying the @Testcontainers annotation will instruct Spock to start and stop all
-testcontainers accordingly. This annotation can be mixed with Spock's @Shared annotation to indicate, that containers shouldn't be restarted between tests.
+TestContainers accordingly. This annotation can be mixed with Spock's @Shared annotation to indicate, that containers shouldn't be restarted between tests.
 
 [source, groovy]
 ----
@@ -136,43 +136,144 @@ We'll use PostgreSQL in the following example, so we need to include an addition
 testCompile group: 'org.testcontainers', name: 'postgresql', version: '1.2.1'
 ----
 
+=== Configure SUT at runtime using System Properties
 
-=== Special JDBC URL
+We want our tests to be as portable as possible and so one shouldn't make assumptions regarding the environment they are
+running in (like i.e. free ports). Luckily TestContainers will already do all the heavy lifting for you and start
+the database on a free port (by leveraging the underlying container technology). By using methods like `postgreSQLContainer.getJdbcUrl()`
+it's possible to get the concrete values a runtime.
 
-TestContainers provides a special injection point for using a database container in your integration tests.
-If TestContainers is on the classpath, it's sufficient to use a special JDBC url and TestContainers
-will automatically spin up a fresh database container once the application starts. All you have to do
-is inserting a `tc:` after `jdbc:` part of the JDBC URL:
+One way to override the Grails configuration values is to use JVM system properties:
 
+[source, groovy]
 ----
-jdbc:tc:postgresql://hostname/databasename
+System.setProperty("dataSource.url", postgreSQLContainer.jdbcUrl)
+System.setProperty("dataSource.username", postgreSQLContainer.username)
+System.setProperty("dataSource.password", postgreSQLContainer.password)
+System.setProperty("dataSource.driverClassName", "org.postgresql.Driver")
 ----
 
+It might also be a sensible thing to cleanup afterwards, so we don't pollute our JVM environment:
 
-=== Using System Properties
-asd
+[source, groovy]
+----
+System.clearProperty("dataSource.url")
+----
+
+We also need to refresh the `ApplicationContext`, so `@DirtiesContext` comes in handy:
+
+[source, groovy]
+----
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class BookSpec extends Specification {
+  ...
+}
+----
 
 
 ****
 Could you inject these configuration values in a way that's more idiomatic to Grails?
 Spring-Boot allows the usage of `ApplicationContextInitializer`, but I wasn't able to get this working
-in conjunction with
+in conjunction with Grails' `@Integration` AST transformation. I'd be happy to receive suggestions from the Grails
+gurus ;)
 ****
 
-=== Sharing Database between tests
+=== Exercise
+
+Create a simple domain class
+
+----
+grails> create-domain-class Book
+----
+
+and a corresponding integration test
+
+----
+grails> create-integration-test BookIntSpec
+----
+
+Now write a simple integration test which will verify, that persisting a `Book` works. At which point in the test
+lifecycle would you set the configuration values?
+
+****
+You might need additional runtime dependencies! You'll also notice scary error messages in red when the database container
+is starting. These do occur because TestContainers will try to connect to the starting database using the PostgreSQL JDBC
+driver in order to determine if the database is ready to interact with. These error logs will not appear anymore in the
+next TestContainers release.
+****
 
 
+== Interact with an external HTTP-Server
 
-=== Exercises
+Now we want to think about testing the integration with a real external application. This could be anything
+which we'd be able to run inside a container, but in order to keep things simple, we have a very basic example:
+Downloading a file from an HTTP-Server.
+
+Let's start with a Grails service class skeleton, which looks like this:
+
+[source, groovy]
+----
+class HttpDownloaderService {
+
+    @Value('${http.ip}')
+    String serverIp
+
+    @Value('${http.port}')
+    String serverPort
+
+    String downloadFile(String path) {
+        ...
+    }
+}
+----
 
 
+=== Generic Container
 
+For this integration test we want to use an Apache webserver. Fortunately there is a ready to use Docker image: `httpd:alpine`
 
-== Interact with a FTP-Server
+TestContainers provides a generic API for Docker images called `GenericContainer`. We also need to tell TestContainers which port
+we want the container to expose and as before, TestContainers will find use a free port on our host system and setup up
+the appropriate mapping.
 
+We might also want to have some specific files on the server we can use for our tests and TestContainers will allow us
+to mount files on the classpath into the container:
+
+[source, groovy]
+----
+GenericContainer httpContainer = new GenericContainer("httpd:alpine")
+            .withExposedPorts(80)
+            .withClasspathResourceMapping("foo.txt", "/usr/local/apache2/htdocs/foo.txt", BindMode.READ_ONLY)
+----
+
+The `GenericContainer` interface also provides the methods to retrieve the actual container ip and port at runtime:
+
+[source, groovy]
+----
+httpContainer.getContainerIpAddress()
+httpContainer.getMappedPort(80)
+----
+
+=== Exercise
+
+Write an integration test as well as the corresponding production code to make the test green. You might want to use
+the wonderful new https://github.com/http-builder-ng/http-builder-ng[HttpBuilder-NG] for the implementation code:
+
+[source, groovy]
+----
+compile 'io.github.http-builder-ng:http-builder-ng-core:0.16.1'
+----
+
+Like before, think about how to actually inject the configuration properties into your Grails application context.
 
 == Functional testing using Geb and Selenium
 
+I've prepared an example, we might want to look into:
+
+[source, bash]
+----
+git clone https://github.com/kiview/example-voting-app.git
+----
 
 == Acknowledgements
 
