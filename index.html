@@ -528,13 +528,16 @@ table.CodeRay td.code>pre{padding:0}
 </li>
 <li><a href="#_integration_testing_using_a_real_database">Integration testing using a real database</a>
 <ul class="sectlevel2">
-<li><a href="#_special_jdbc_url">Special JDBC URL</a></li>
-<li><a href="#_using_system_properties">Using System Properties</a></li>
-<li><a href="#_sharing_database_between_tests">Sharing Database between tests</a></li>
-<li><a href="#_exercises">Exercises</a></li>
+<li><a href="#_configure_sut_at_runtime_using_system_properties">Configure SUT at runtime using System Properties</a></li>
+<li><a href="#_exercise">Exercise</a></li>
 </ul>
 </li>
-<li><a href="#_interact_with_a_ftp_server">Interact with a FTP-Server</a></li>
+<li><a href="#_interact_with_an_external_http_server">Interact with an external HTTP-Server</a>
+<ul class="sectlevel2">
+<li><a href="#_generic_container">Generic Container</a></li>
+<li><a href="#_exercise_2">Exercise</a></li>
+</ul>
+</li>
 <li><a href="#_functional_testing_using_geb_and_selenium">Functional testing using Geb and Selenium</a></li>
 <li><a href="#_acknowledgements">Acknowledgements</a></li>
 </ul>
@@ -629,7 +632,7 @@ we&#8217;ll use in this workshop.</p>
 </div>
 <div class="paragraph">
 <p>Since the most recent snapshot versions are available at <a href="https://jitpack.io/">jitpack.io</a>, you can
-include the dependency in <code>build.gradle</code> file like this:</p>
+include the dependency in your <code>build.gradle</code> file like this:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -639,7 +642,7 @@ include the dependency in <code>build.gradle</code> file like this:</p>
 }
 
 dependencies {
-    compile <span class="string"><span class="delimiter">'</span><span class="content">com.github.testcontainers:testcontainers-spock:87299c10e8</span><span class="delimiter">'</span></span>
+    testCompile <span class="string"><span class="delimiter">'</span><span class="content">com.github.testcontainers:testcontainers-spock:87299c10e8</span><span class="delimiter">'</span></span>
 }</code></pre>
 </div>
 </div>
@@ -647,7 +650,7 @@ dependencies {
 <h4 id="__testcontainers_class_annotation">@Testcontainers class-annotation</h4>
 <div class="paragraph">
 <p>Specifying the @Testcontainers annotation will instruct Spock to start and stop all
-testcontainers accordingly. This annotation can be mixed with Spock&#8217;s @Shared annotation to indicate, that containers shouldn&#8217;t be restarted between tests.</p>
+TestContainers accordingly. This annotation can be mixed with Spock&#8217;s @Shared annotation to indicate, that containers shouldn&#8217;t be restarted between tests.</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -724,54 +727,175 @@ testCompile <span class="key">group</span>: <span class="string"><span class="de
 </div>
 </div>
 <div class="sect2">
-<h3 id="_special_jdbc_url">Special JDBC URL</h3>
+<h3 id="_configure_sut_at_runtime_using_system_properties">Configure SUT at runtime using System Properties</h3>
 <div class="paragraph">
-<p>TestContainers provides a special injection point for using a database container in your integration tests.
-If TestContainers is on the classpath, it&#8217;s sufficient to use a special JDBC url and TestContainers
-will automatically spin up a fresh database container once the application starts. All you have to do
-is inserting a <code>tc:</code> after <code>jdbc:</code> part of the JDBC URL:</p>
+<p>We want our tests to be as portable as possible and so one shouldn&#8217;t make assumptions regarding the environment they are
+running in (like i.e. free ports). Luckily TestContainers will already do all the heavy lifting for you and start
+the database on a free port (by leveraging the underlying container technology). By using methods like <code>postgreSQLContainer.getJdbcUrl()</code>
+it&#8217;s possible to get the concrete values a runtime.</p>
+</div>
+<div class="paragraph">
+<p>One way to override the Grails configuration values is to use JVM system properties:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre>jdbc:tc:postgresql://hostname/databasename</pre>
+<pre class="CodeRay highlight"><code data-lang="groovy"><span class="predefined-type">System</span>.setProperty(<span class="string"><span class="delimiter">&quot;</span><span class="content">dataSource.url</span><span class="delimiter">&quot;</span></span>, postgreSQLContainer.jdbcUrl)
+<span class="predefined-type">System</span>.setProperty(<span class="string"><span class="delimiter">&quot;</span><span class="content">dataSource.username</span><span class="delimiter">&quot;</span></span>, postgreSQLContainer.username)
+<span class="predefined-type">System</span>.setProperty(<span class="string"><span class="delimiter">&quot;</span><span class="content">dataSource.password</span><span class="delimiter">&quot;</span></span>, postgreSQLContainer.password)
+<span class="predefined-type">System</span>.setProperty(<span class="string"><span class="delimiter">&quot;</span><span class="content">dataSource.driverClassName</span><span class="delimiter">&quot;</span></span>, <span class="string"><span class="delimiter">&quot;</span><span class="content">org.postgresql.Driver</span><span class="delimiter">&quot;</span></span>)</code></pre>
 </div>
 </div>
-</div>
-<div class="sect2">
-<h3 id="_using_system_properties">Using System Properties</h3>
 <div class="paragraph">
-<p>asd</p>
+<p>It might also be a sensible thing to cleanup afterwards, so we don&#8217;t pollute our JVM environment:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy"><span class="predefined-type">System</span>.clearProperty(<span class="string"><span class="delimiter">&quot;</span><span class="content">dataSource.url</span><span class="delimiter">&quot;</span></span>)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>We also need to refresh the <code>ApplicationContext</code>, so <code>@DirtiesContext</code> comes in handy:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy"><span class="annotation">@DirtiesContext</span>(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+<span class="type">class</span> <span class="class">BookSpec</span> <span class="directive">extends</span> Specification {
+  ...
+}</code></pre>
+</div>
 </div>
 <div class="sidebarblock">
 <div class="content">
 <div class="paragraph">
 <p>Could you inject these configuration values in a way that&#8217;s more idiomatic to Grails?
 Spring-Boot allows the usage of <code>ApplicationContextInitializer</code>, but I wasn&#8217;t able to get this working
-in conjunction with</p>
+in conjunction with Grails' <code>@Integration</code> AST transformation. I&#8217;d be happy to receive suggestions from the Grails
+gurus ;)</p>
 </div>
 </div>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_sharing_database_between_tests">Sharing Database between tests</h3>
-
+<h3 id="_exercise">Exercise</h3>
+<div class="paragraph">
+<p>Create a simple domain class</p>
 </div>
-<div class="sect2">
-<h3 id="_exercises">Exercises</h3>
-
+<div class="listingblock">
+<div class="content">
+<pre>grails&gt; create-domain-class Book</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>and a corresponding integration test</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>grails&gt; create-integration-test BookIntSpec</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Now write a simple integration test which will verify, that persisting a <code>Book</code> works. At which point in the test
+lifecycle would you set the configuration values?</p>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="paragraph">
+<p>You might need additional runtime dependencies! You&#8217;ll also notice scary error messages in red when the database container
+is starting. These do occur because TestContainers will try to connect to the starting database using the PostgreSQL JDBC
+driver in order to determine if the database is ready to interact with. These error logs will not appear anymore in the
+next TestContainers release.</p>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="_interact_with_a_ftp_server">Interact with a FTP-Server</h2>
+<h2 id="_interact_with_an_external_http_server">Interact with an external HTTP-Server</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>Now we want to think about testing the integration with a real external application. This could be anything
+which we&#8217;d be able to run inside a container, but in order to keep things simple, we have a very basic example:
+Downloading a file from an HTTP-Server.</p>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s start with a Grails service class skeleton, which looks like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy"><span class="type">class</span> <span class="class">HttpDownloaderService</span> {
 
+    <span class="annotation">@Value</span>(<span class="string"><span class="delimiter">'</span><span class="content">${http.ip}</span><span class="delimiter">'</span></span>)
+    <span class="predefined-type">String</span> serverIp
+
+    <span class="annotation">@Value</span>(<span class="string"><span class="delimiter">'</span><span class="content">${http.port}</span><span class="delimiter">'</span></span>)
+    <span class="predefined-type">String</span> serverPort
+
+    <span class="predefined-type">String</span> downloadFile(<span class="predefined-type">String</span> path) {
+        ...
+    }
+}</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_generic_container">Generic Container</h3>
+<div class="paragraph">
+<p>For this integration test we want to use an Apache webserver. Fortunately there is a ready to use Docker image: <code>httpd:alpine</code></p>
+</div>
+<div class="paragraph">
+<p>TestContainers provides a generic API for Docker images called <code>GenericContainer</code>. We also need to tell TestContainers which port
+we want the container to expose and as before, TestContainers will find use a free port on our host system and setup up
+the appropriate mapping.</p>
+</div>
+<div class="paragraph">
+<p>We might also want to have some specific files on the server we can use for our tests and TestContainers will allow us
+to mount files on the classpath into the container:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy">GenericContainer httpContainer = <span class="keyword">new</span> GenericContainer(<span class="string"><span class="delimiter">&quot;</span><span class="content">httpd:alpine</span><span class="delimiter">&quot;</span></span>)
+            .withExposedPorts(<span class="integer">80</span>)
+            .withClasspathResourceMapping(<span class="string"><span class="delimiter">&quot;</span><span class="content">foo.txt</span><span class="delimiter">&quot;</span></span>, <span class="string"><span class="delimiter">&quot;</span><span class="content">/usr/local/apache2/htdocs/foo.txt</span><span class="delimiter">&quot;</span></span>, BindMode.READ_ONLY)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>GenericContainer</code> interface also provides the methods to retrieve the actual container ip and port at runtime:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy">httpContainer.getContainerIpAddress()
+httpContainer.getMappedPort(<span class="integer">80</span>)</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_exercise_2">Exercise</h3>
+<div class="paragraph">
+<p>Write an integration test as well as the corresponding production code to make the test green. You might want to use
+the wonderful new <a href="https://github.com/http-builder-ng/http-builder-ng">HttpBuilder-NG</a> for the implementation code:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy">compile <span class="string"><span class="delimiter">'</span><span class="content">io.github.http-builder-ng:http-builder-ng-core:0.16.1</span><span class="delimiter">'</span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Like before, think about how to actually inject the configuration properties into your Grails application context.</p>
+</div>
+</div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_functional_testing_using_geb_and_selenium">Functional testing using Geb and Selenium</h2>
 <div class="sectionbody">
-
+<div class="paragraph">
+<p>I&#8217;ve prepared an example, we might want to look into:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="bash">git clone https://github.com/kiview/example-voting-app.git</code></pre>
+</div>
+</div>
 </div>
 </div>
 <div class="sect1">
@@ -790,7 +914,7 @@ kickstart using AsciiDoc for this workshop</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2017-05-22 18:24:52 +02:00
+Last updated 2017-05-22 21:33:11 +02:00
 </div>
 </div>
 </body>
