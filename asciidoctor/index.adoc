@@ -17,13 +17,164 @@ To complete this workshop, you should have installed locally:
 Also, although not mandatory, it's highly recommended to use https://www.jetbrains.com/idea/[IntelliJ IDEA], arguably
 the best IDE for Groovy and Grails development. You can just use the Community Edition if you want to.
 
-To get started, clone the workshop repo locally:
+=== Grails Quickstart
+
+The easiest way to install Grails (and many other JVM tools) is to use http://sdkman.io/[SDKMAN]
+
+[source, bash]
+----
+curl -s "https://get.sdkman.io" | bash
+----
+
+Restart your terminal and install Grails:
+
+[source, bash]
+----
+sdk install grails
+----
+
+Check that everything works by typing `grails -version`
+
+[source, bash]
+----
+| Grails Version: 3.2.9
+| Groovy Version: 2.4.10
+| JVM Version: 1.8.0_131
+----
+
+
+Let's start by creating a new and empty Grails application:
+[source, bash]
+----
+grails create-app testcontainers-workshop
+cd testcontainers-workshop
+----
+
+You can import the generated project into Intellij using `File -> New -> Project from existing sources...` and select the
+`build.gradle` file inside the directory.
+
+=== TestContainers Quickstart
+
+____
+https://github.com/testcontainers/testcontainers-java[TestContainers] is a Java 8 library that supports JUnit tests, providing lightweight, throwaway instances of common databases, Selenium web browsers, or anything else that can run in a Docker container.
+____
+
+There also exists a special https://github.com/testcontainers/testcontainers-spock[TestContainers-Spock-Extension] which
+we'll use in this workshop.
+
+Since the most recent snapshot versions are available at https://jitpack.io/[jitpack.io], you can
+include the dependency in `build.gradle` file like this:
+
+[source, groovy]
+----
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    compile 'com.github.testcontainers:testcontainers-spock:87299c10e8'
+}
+----
+
+==== @Testcontainers class-annotation
+Specifying the @Testcontainers annotation will instruct Spock to start and stop all
+testcontainers accordingly. This annotation can be mixed with Spock's @Shared annotation to indicate, that containers shouldn't be restarted between tests.
+
+[source, groovy]
+----
+@Testcontainers
+class DatabaseTest extends Specification {
+
+    @Shared
+    PostgreSQLContainer postgreSQLContainer = new PostgreSQLContainer()
+            .withDatabaseName("foo")
+            .withUsername("foo")
+            .withPassword("secret")
+
+    def "database is accessible"() {
+
+        given: "a jdbc connection"
+        HikariConfig hikariConfig = new HikariConfig()
+        hikariConfig.setJdbcUrl(postgreSQLContainer.jdbcUrl)
+        hikariConfig.setUsername("foo")
+        hikariConfig.setPassword("secret")
+        HikariDataSource ds = new HikariDataSource(hikariConfig)
+
+        when: "querying the database"
+        Statement statement = ds.getConnection().createStatement()
+        statement.execute("SELECT 1")
+        ResultSet resultSet = statement.getResultSet()
+        resultSet.next()
+
+        then: "result is returned"
+        int resultSetInt = resultSet.getInt(1)
+        resultSetInt == 1
+    }
+}
+----
+
+== Integration testing using a real database
+
+A classic use case for integration testing is the persistence layer. Grails default approach uses an embedded H2 in-memory database
+and runs each test inside its own database transaction, which is rolled back after each test method.
+This might work for a lot use case, but sometimes it's beneficial to use a real database for the integration tests, which
+will provide you with the extra level of confidence regarding vendor specific SQL features or more complex queries.
+
+TestContainers provides out of the box support for the following databases:
+
+* MySQL
+* PostgreSQL
+* Oracle XE
+* Virtuoso
+
+We'll use PostgreSQL in the following example, so we need to include an additional dependency in our `build.gradle` file:
+
+[source, groovy]
+----
+// https://mvnrepository.com/artifact/org.testcontainers/postgresql
+testCompile group: 'org.testcontainers', name: 'postgresql', version: '1.2.1'
+----
+
+
+=== Special JDBC URL
+
+TestContainers provides a special injection point for using a database container in your integration tests.
+If TestContainers is on the classpath, it's sufficient to use a special JDBC url and TestContainers
+will automatically spin up a fresh database container once the application starts. All you have to do
+is inserting a `tc:` after `jdbc:` part of the JDBC URL:
 
 ----
-git clone https://github.com/kiview/testcontainers-grails-workshop.git
+jdbc:tc:postgresql://hostname/databasename
 ----
+
+
+=== Using System Properties
+asd
+
+
+****
+Could you inject these configuration values in a way that's more idiomatic to Grails?
+Spring-Boot allows the usage of `ApplicationContextInitializer`, but I wasn't able to get this working
+in conjunction with
+****
+
+=== Sharing Database between tests
+
+
+
+=== Exercises
+
+
+
+
+== Interact with a FTP-Server
+
+
+== Functional testing using Geb and Selenium
+
 
 == Acknowledgements
 
 * https://github.com/alvarosanchez[Álvaro Sánchez-Mariscal] and https://github.com/musketyr[Vladimir Orany] for giving me a
-kickstart using AscciDoc for this workshop
+kickstart using AsciiDoc for this workshop
