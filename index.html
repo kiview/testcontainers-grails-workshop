@@ -520,7 +520,22 @@ table.CodeRay td.code>pre{padding:0}
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
-<li><a href="#_getting_started">Getting started</a></li>
+<li><a href="#_getting_started">Getting started</a>
+<ul class="sectlevel2">
+<li><a href="#_grails_quickstart">Grails Quickstart</a></li>
+<li><a href="#_testcontainers_quickstart">TestContainers Quickstart</a></li>
+</ul>
+</li>
+<li><a href="#_integration_testing_using_a_real_database">Integration testing using a real database</a>
+<ul class="sectlevel2">
+<li><a href="#_special_jdbc_url">Special JDBC URL</a></li>
+<li><a href="#_using_system_properties">Using System Properties</a></li>
+<li><a href="#_sharing_database_between_tests">Sharing Database between tests</a></li>
+<li><a href="#_exercises">Exercises</a></li>
+</ul>
+</li>
+<li><a href="#_interact_with_a_ftp_server">Interact with a FTP-Server</a></li>
+<li><a href="#_functional_testing_using_geb_and_selenium">Functional testing using Geb and Selenium</a></li>
 <li><a href="#_acknowledgements">Acknowledgements</a></li>
 </ul>
 </div>
@@ -557,14 +572,206 @@ table.CodeRay td.code>pre{padding:0}
 <p>Also, although not mandatory, it&#8217;s highly recommended to use <a href="https://www.jetbrains.com/idea/">IntelliJ IDEA</a>, arguably
 the best IDE for Groovy and Grails development. You can just use the Community Edition if you want to.</p>
 </div>
+<div class="sect2">
+<h3 id="_grails_quickstart">Grails Quickstart</h3>
 <div class="paragraph">
-<p>To get started, clone the workshop repo locally:</p>
+<p>The easiest way to install Grails (and many other JVM tools) is to use <a href="http://sdkman.io/">SDKMAN</a></p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre>git clone https://github.com/kiview/testcontainers-grails-workshop.git</pre>
+<pre class="CodeRay highlight"><code data-lang="bash">curl -s &quot;https://get.sdkman.io&quot; | bash</code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>Restart your terminal and install Grails:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="bash">sdk install grails</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Check that everything works by typing <code>grails -version</code></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="bash">| Grails Version: 3.2.9
+| Groovy Version: 2.4.10
+| JVM Version: 1.8.0_131</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s start by creating a new and empty Grails application:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="bash">grails create-app testcontainers-workshop
+cd testcontainers-workshop</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can import the generated project into Intellij using <code>File &#8594; New &#8594; Project from existing sources&#8230;&#8203;</code> and select the
+<code>build.gradle</code> file inside the directory.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_testcontainers_quickstart">TestContainers Quickstart</h3>
+<div class="quoteblock">
+<blockquote>
+<div class="paragraph">
+<p><a href="https://github.com/testcontainers/testcontainers-java">TestContainers</a> is a Java 8 library that supports JUnit tests, providing lightweight, throwaway instances of common databases, Selenium web browsers, or anything else that can run in a Docker container.</p>
+</div>
+</blockquote>
+</div>
+<div class="paragraph">
+<p>There also exists a special <a href="https://github.com/testcontainers/testcontainers-spock">TestContainers-Spock-Extension</a> which
+we&#8217;ll use in this workshop.</p>
+</div>
+<div class="paragraph">
+<p>Since the most recent snapshot versions are available at <a href="https://jitpack.io/">jitpack.io</a>, you can
+include the dependency in <code>build.gradle</code> file like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy">repositories {
+    mavenCentral()
+    maven { url <span class="string"><span class="delimiter">'</span><span class="content">https://jitpack.io</span><span class="delimiter">'</span></span> }
+}
+
+dependencies {
+    compile <span class="string"><span class="delimiter">'</span><span class="content">com.github.testcontainers:testcontainers-spock:87299c10e8</span><span class="delimiter">'</span></span>
+}</code></pre>
+</div>
+</div>
+<div class="sect3">
+<h4 id="__testcontainers_class_annotation">@Testcontainers class-annotation</h4>
+<div class="paragraph">
+<p>Specifying the @Testcontainers annotation will instruct Spock to start and stop all
+testcontainers accordingly. This annotation can be mixed with Spock&#8217;s @Shared annotation to indicate, that containers shouldn&#8217;t be restarted between tests.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy"><span class="annotation">@Testcontainers</span>
+<span class="type">class</span> <span class="class">DatabaseTest</span> <span class="directive">extends</span> Specification {
+
+    <span class="annotation">@Shared</span>
+    PostgreSQLContainer postgreSQLContainer = <span class="keyword">new</span> PostgreSQLContainer()
+            .withDatabaseName(<span class="string"><span class="delimiter">&quot;</span><span class="content">foo</span><span class="delimiter">&quot;</span></span>)
+            .withUsername(<span class="string"><span class="delimiter">&quot;</span><span class="content">foo</span><span class="delimiter">&quot;</span></span>)
+            .withPassword(<span class="string"><span class="delimiter">&quot;</span><span class="content">secret</span><span class="delimiter">&quot;</span></span>)
+
+    <span class="keyword">def</span> <span class="string"><span class="delimiter">&quot;</span><span class="content">database is accessible</span><span class="delimiter">&quot;</span></span>() {
+
+        <span class="key">given</span>: <span class="string"><span class="delimiter">&quot;</span><span class="content">a jdbc connection</span><span class="delimiter">&quot;</span></span>
+        HikariConfig hikariConfig = <span class="keyword">new</span> HikariConfig()
+        hikariConfig.setJdbcUrl(postgreSQLContainer.jdbcUrl)
+        hikariConfig.setUsername(<span class="string"><span class="delimiter">&quot;</span><span class="content">foo</span><span class="delimiter">&quot;</span></span>)
+        hikariConfig.setPassword(<span class="string"><span class="delimiter">&quot;</span><span class="content">secret</span><span class="delimiter">&quot;</span></span>)
+        HikariDataSource ds = <span class="keyword">new</span> HikariDataSource(hikariConfig)
+
+        <span class="key">when</span>: <span class="string"><span class="delimiter">&quot;</span><span class="content">querying the database</span><span class="delimiter">&quot;</span></span>
+        <span class="predefined-type">Statement</span> statement = ds.getConnection().createStatement()
+        statement.execute(<span class="string"><span class="delimiter">&quot;</span><span class="content">SELECT 1</span><span class="delimiter">&quot;</span></span>)
+        <span class="predefined-type">ResultSet</span> resultSet = statement.getResultSet()
+        resultSet.next()
+
+        <span class="key">then</span>: <span class="string"><span class="delimiter">&quot;</span><span class="content">result is returned</span><span class="delimiter">&quot;</span></span>
+        <span class="type">int</span> resultSetInt = resultSet.getInt(<span class="integer">1</span>)
+        resultSetInt == <span class="integer">1</span>
+    }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_integration_testing_using_a_real_database">Integration testing using a real database</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A classic use case for integration testing is the persistence layer. Grails default approach uses an embedded H2 in-memory database
+and runs each test inside its own database transaction, which is rolled back after each test method.
+This might work for a lot use case, but sometimes it&#8217;s beneficial to use a real database for the integration tests, which
+will provide you with the extra level of confidence regarding vendor specific SQL features or more complex queries.</p>
+</div>
+<div class="paragraph">
+<p>TestContainers provides out of the box support for the following databases:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>MySQL</p>
+</li>
+<li>
+<p>PostgreSQL</p>
+</li>
+<li>
+<p>Oracle XE</p>
+</li>
+<li>
+<p>Virtuoso</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We&#8217;ll use PostgreSQL in the following example, so we need to include an additional dependency in our <code>build.gradle</code> file:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="CodeRay highlight"><code data-lang="groovy"><span class="comment">// https://mvnrepository.com/artifact/org.testcontainers/postgresql</span>
+testCompile <span class="key">group</span>: <span class="string"><span class="delimiter">'</span><span class="content">org.testcontainers</span><span class="delimiter">'</span></span>, <span class="key">name</span>: <span class="string"><span class="delimiter">'</span><span class="content">postgresql</span><span class="delimiter">'</span></span>, <span class="key">version</span>: <span class="string"><span class="delimiter">'</span><span class="content">1.2.1</span><span class="delimiter">'</span></span></code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_special_jdbc_url">Special JDBC URL</h3>
+<div class="paragraph">
+<p>TestContainers provides a special injection point for using a database container in your integration tests.
+If TestContainers is on the classpath, it&#8217;s sufficient to use a special JDBC url and TestContainers
+will automatically spin up a fresh database container once the application starts. All you have to do
+is inserting a <code>tc:</code> after <code>jdbc:</code> part of the JDBC URL:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>jdbc:tc:postgresql://hostname/databasename</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_using_system_properties">Using System Properties</h3>
+<div class="paragraph">
+<p>asd</p>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="paragraph">
+<p>Could you inject these configuration values in a way that&#8217;s more idiomatic to Grails?
+Spring-Boot allows the usage of <code>ApplicationContextInitializer</code>, but I wasn&#8217;t able to get this working
+in conjunction with</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_sharing_database_between_tests">Sharing Database between tests</h3>
+
+</div>
+<div class="sect2">
+<h3 id="_exercises">Exercises</h3>
+
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_interact_with_a_ftp_server">Interact with a FTP-Server</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_functional_testing_using_geb_and_selenium">Functional testing using Geb and Selenium</h2>
+<div class="sectionbody">
+
 </div>
 </div>
 <div class="sect1">
@@ -574,7 +781,7 @@ the best IDE for Groovy and Grails development. You can just use the Community E
 <ul>
 <li>
 <p><a href="https://github.com/alvarosanchez">Álvaro Sánchez-Mariscal</a> and <a href="https://github.com/musketyr">Vladimir Orany</a> for giving me a
-kickstart using AscciDoc for this workshop</p>
+kickstart using AsciiDoc for this workshop</p>
 </li>
 </ul>
 </div>
@@ -583,7 +790,7 @@ kickstart using AscciDoc for this workshop</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2017-05-22 16:41:13 +02:00
+Last updated 2017-05-22 18:24:52 +02:00
 </div>
 </div>
 </body>
