@@ -10,9 +10,19 @@ Kevin Wittek <https://github.com/kiview[icon:github[] @kiview]>
 To complete this workshop, you should have installed locally:
 
 * JDK 8
-* Git
+* GIT
 * Docker 17-CE
 * Linux environment recommended
+** Using _Docker for Windows_ and _Docker for Mac_ should work as well, but I might struggle in helping with problems on these systems ;)
+
+Generals experience in using the following technologies is expected. You can tag along if you don't
+know all the details, but some topics might get too complex if you are missing the basics.
+
+* Groovy
+* Grails
+* Gradle
+* Spock
+* Docker
 
 Also, although not mandatory, it's highly recommended to use https://www.jetbrains.com/idea/[IntelliJ IDEA], arguably
 the best IDE for Groovy and Grails development. You can just use the Community Edition if you want to.
@@ -52,6 +62,12 @@ cd testcontainers-workshop
 
 You can import the generated project into Intellij using `File -> New -> Project from existing sources...` and select the
 `build.gradle` file inside the directory.
+
+[TIP]
+====
+You can also head over to http://start.grails.org/[Grails Application Forge] and download a ready to use
+Grails project and use the Gradle-Wrapper and circumvent install Gradle altogether.
+====
 
 === TestContainers Quickstart
 
@@ -136,6 +152,46 @@ We'll use PostgreSQL in the following example, so we need to include an addition
 testCompile group: 'org.testcontainers', name: 'postgresql', version: '1.2.1'
 ----
 
+=== TestContainers JDBC-URL
+
+As long as you have TestContainers and the appropriate JDBC driver on your classpath, you can simply modify regular JDBC
+connection URLs to get a fresh containerized instance of the database each time your application starts up (meaning
+on initialization of the JDBC connection pool).
+
+[CAUTION]
+=====
+Attention when using Spring-Boot (or Grails for that matter). In this case you have to specify the following JDBC driver:
+
+`spring.datasource.driver-class-name=org.testcontainers.jdbc.ContainerDatabaseDriver`
+
+which would translate to something like this for Grails:
+
+----
+dataSource:
+  dbCreate: create
+  url: jdbc:tc:postgresql://hostname/databasename
+  driverClassName: org.testcontainers.jdbc.ContainerDatabaseDriver
+----
+
+=====
+
+==== MySQL
+
+----
+jdbc:tc:mysql://somehostname:someport/databasename
+----
+
+----
+jdbc:tc:mysql:5.6.23://somehostname:someport/databasename
+----
+
+==== PostgreSQL
+
+----
+jdbc:tc:postgresql://hostname/databasename
+----
+
+
 === Configure SUT at runtime using System Properties
 
 We want our tests to be as portable as possible and so one shouldn't make assumptions regarding the environment they are
@@ -170,13 +226,13 @@ class BookSpec extends Specification {
 }
 ----
 
-
-****
+[NOTE]
+====
 Could you inject these configuration values in a way that's more idiomatic to Grails?
 Spring-Boot allows the usage of `ApplicationContextInitializer`, but I wasn't able to get this working
 in conjunction with Grails' `@Integration` AST transformation. I'd be happy to receive suggestions from the Grails
 gurus ;)
-****
+====
 
 === Exercise
 
@@ -189,18 +245,26 @@ grails> create-domain-class Book
 and a corresponding integration test
 
 ----
-grails> create-integration-test BookIntSpec
+grails> create-integration-test BookInt
 ----
 
-Now write a simple integration test which will verify, that persisting a `Book` works. At which point in the test
-lifecycle would you set the configuration values?
+Now write a simple integration test (using the `@Testcontainers` annotation and the System properties based configuration)
+which will verify, that persisting a `Book` works. At which point in the test
+lifecycle would you set the configuration values? Also ensure that you aren't
+using Grails' default H2 database in your integration test ;)
 
-****
+As a bonus exercise, try to write the same test using the specialized TestContainers
+JDBC-URL.
+
+[TIP]
+====
 You might need additional runtime dependencies! You'll also notice scary error messages in red when the database container
 is starting. These do occur because TestContainers will try to connect to the starting database using the PostgreSQL JDBC
 driver in order to determine if the database is ready to interact with. These error logs will not appear anymore in the
 next TestContainers release.
-****
+
+Also think about flushing the Hibernate Session when writing the test.
+====
 
 
 == Interact with an external HTTP-Server

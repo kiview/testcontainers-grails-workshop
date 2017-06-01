@@ -528,6 +528,7 @@ table.CodeRay td.code>pre{padding:0}
 </li>
 <li><a href="#_integration_testing_using_a_real_database">Integration testing using a real database</a>
 <ul class="sectlevel2">
+<li><a href="#_testcontainers_jdbc_url">TestContainers JDBC-URL</a></li>
 <li><a href="#_configure_sut_at_runtime_using_system_properties">Configure SUT at runtime using System Properties</a></li>
 <li><a href="#_exercise">Exercise</a></li>
 </ul>
@@ -561,13 +562,43 @@ table.CodeRay td.code>pre{padding:0}
 <p>JDK 8</p>
 </li>
 <li>
-<p>Git</p>
+<p>GIT</p>
 </li>
 <li>
 <p>Docker 17-CE</p>
 </li>
 <li>
 <p>Linux environment recommended</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Using <em>Docker for Windows</em> and <em>Docker for Mac</em> should work as well, but I might struggle in helping with problems on these systems ;)</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Generals experience in using the following technologies is expected. You can tag along if you don&#8217;t
+know all the details, but some topics might get too complex if you are missing the basics.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Groovy</p>
+</li>
+<li>
+<p>Grails</p>
+</li>
+<li>
+<p>Gradle</p>
+</li>
+<li>
+<p>Spock</p>
+</li>
+<li>
+<p>Docker</p>
 </li>
 </ul>
 </div>
@@ -615,6 +646,21 @@ cd testcontainers-workshop</code></pre>
 <div class="paragraph">
 <p>You can import the generated project into Intellij using <code>File &#8594; New &#8594; Project from existing sources&#8230;&#8203;</code> and select the
 <code>build.gradle</code> file inside the directory.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>You can also head over to <a href="http://start.grails.org/">Grails Application Forge</a> and download a ready to use
+Grails project and use the Gradle-Wrapper and circumvent install Gradle altogether.</p>
+</div>
+</td>
+</tr>
+</table>
 </div>
 </div>
 <div class="sect2">
@@ -727,6 +773,63 @@ testCompile <span class="key">group</span>: <span class="string"><span class="de
 </div>
 </div>
 <div class="sect2">
+<h3 id="_testcontainers_jdbc_url">TestContainers JDBC-URL</h3>
+<div class="paragraph">
+<p>As long as you have TestContainers and the appropriate JDBC driver on your classpath, you can simply modify regular JDBC
+connection URLs to get a fresh containerized instance of the database each time your application starts up (meaning
+on initialization of the JDBC connection pool).</p>
+</div>
+<div class="admonitionblock caution">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-caution" title="Caution"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Attention when using Spring-Boot (or Grails for that matter). In this case you have to specify the following JDBC driver:</p>
+</div>
+<div class="paragraph">
+<p><code>spring.datasource.driver-class-name=org.testcontainers.jdbc.ContainerDatabaseDriver</code></p>
+</div>
+<div class="paragraph">
+<p>which would translate to something like this for Grails:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>dataSource:
+  dbCreate: create
+  url: jdbc:tc:postgresql://hostname/databasename
+  driverClassName: org.testcontainers.jdbc.ContainerDatabaseDriver</pre>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="sect3">
+<h4 id="_mysql">MySQL</h4>
+<div class="listingblock">
+<div class="content">
+<pre>jdbc:tc:mysql://somehostname:someport/databasename</pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre>jdbc:tc:mysql:5.6.23://somehostname:someport/databasename</pre>
+</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="_postgresql">PostgreSQL</h4>
+<div class="listingblock">
+<div class="content">
+<pre>jdbc:tc:postgresql://hostname/databasename</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
 <h3 id="_configure_sut_at_runtime_using_system_properties">Configure SUT at runtime using System Properties</h3>
 <div class="paragraph">
 <p>We want our tests to be as portable as possible and so one shouldn&#8217;t make assumptions regarding the environment they are
@@ -764,15 +867,22 @@ it&#8217;s possible to get the concrete values a runtime.</p>
 }</code></pre>
 </div>
 </div>
-<div class="sidebarblock">
-<div class="content">
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
 <div class="paragraph">
 <p>Could you inject these configuration values in a way that&#8217;s more idiomatic to Grails?
 Spring-Boot allows the usage of <code>ApplicationContextInitializer</code>, but I wasn&#8217;t able to get this working
 in conjunction with Grails' <code>@Integration</code> AST transformation. I&#8217;d be happy to receive suggestions from the Grails
 gurus ;)</p>
 </div>
-</div>
+</td>
+</tr>
+</table>
 </div>
 </div>
 <div class="sect2">
@@ -790,22 +900,38 @@ gurus ;)</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre>grails&gt; create-integration-test BookIntSpec</pre>
+<pre>grails&gt; create-integration-test BookInt</pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Now write a simple integration test which will verify, that persisting a <code>Book</code> works. At which point in the test
-lifecycle would you set the configuration values?</p>
+<p>Now write a simple integration test (using the <code>@Testcontainers</code> annotation and the System properties based configuration)
+which will verify, that persisting a <code>Book</code> works. At which point in the test
+lifecycle would you set the configuration values? Also ensure that you aren&#8217;t
+using Grails' default H2 database in your integration test ;)</p>
 </div>
-<div class="sidebarblock">
-<div class="content">
+<div class="paragraph">
+<p>As a bonus exercise, try to write the same test using the specialized TestContainers
+JDBC-URL.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
 <div class="paragraph">
 <p>You might need additional runtime dependencies! You&#8217;ll also notice scary error messages in red when the database container
 is starting. These do occur because TestContainers will try to connect to the starting database using the PostgreSQL JDBC
 driver in order to determine if the database is ready to interact with. These error logs will not appear anymore in the
 next TestContainers release.</p>
 </div>
+<div class="paragraph">
+<p>Also think about flushing the Hibernate Session when writing the test.</p>
 </div>
+</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
@@ -914,7 +1040,7 @@ kickstart using AsciiDoc for this workshop</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2017-05-22 21:33:11 +02:00
+Last updated 2017-06-01 11:29:29 +02:00
 </div>
 </div>
 </body>
